@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+  <meta name="description" content="Land-Tax & Associates - Income Tax Return Filing Service" />
+  <title>Land-Tax & Associates | Income Tax Return</title>
+  
+  <!-- Preload critical assets -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://www.gstatic.com" />
+  <link rel="preconnect" href="https://land-tax-8744a-default-rtdb.firebaseio.com" />
+  
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  
+  <!-- Google reCAPTCHA v3 - async loading -->
+  <script src="https://www.google.com/recaptcha/api.js?render=6Lc2JB0tAAAAAK1Zz-pBoXm4x4b1_mjNWlOAynvp" async defer></script>
+  
+  <!-- Firebase - async loading -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js" async></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js" async></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --navy: #0a1a3a; --navy-light: #13294b; --green: #1a5c3e;
+      --green-light: #227a50; --gold: #d4a13e; --gold-light: #e6bc6a;
+      --white: #ffffff; --off-white: #f8fafc; --text: #1e293b;
+      --text-light: #64748b; --border: #e2e8f0; --shadow: 0 8px 30px rgba(0,0,0,0.08);
+      --shadow-lg: 0 20px 40px rgba(0,0,0,0.12);
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--off-white); color: var(--text); line-height: 1.5; }
+    
+    /* Top Register Bar */
+    .top-register-bar {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+      padding: 12px 20px; display: flex; align-items: center; justify-content: center;
+      gap: 16px; flex-wrap: wrap; z-index: 20; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .top-register-bar span { color: var(--navy); font-size: 13px; font-weight: 700; }
+    .top-register-bar strong { color: var(--navy); background: rgba(255,255,255,0.3); padding: 4px 12px; border-radius: 50px; }
+    .top-reg-btn { background: var(--navy); color: var(--gold-light); font-weight: 800; font-size: 13px; padding: 8px 28px; border-radius: 50px; text-decoration: none; transition: all 0.2s; display: inline-block; }
+    .top-reg-btn:hover { background: var(--navy-light); transform: scale(1.02); }
+    
+    /* Navigation */
+    nav { background: var(--navy); position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .nav-container { max-width: 1200px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; height: 65px; }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logo-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gold); }
+    .logo-text { color: white; font-weight: 800; font-size: 16px; line-height: 1.2; }
+    .logo-text span { color: var(--gold-light); font-size: 10px; font-weight: 400; display: block; }
+    
+    /* Hero */
+    .hero { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 50%, var(--green) 100%); color: white; padding: 50px 20px 60px; text-align: center; }
+    .hero-logo-wrapper { display: flex; justify-content: center; margin-bottom: 15px; }
+    .hero-logo { width: 95px; height: 95px; border-radius: 50%; object-fit: cover; border: 3px solid var(--gold); box-shadow: 0 0 30px rgba(212,161,62,0.4); }
+    .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.12); border: 1px solid rgba(212,161,62,0.4); border-radius: 50px; padding: 5px 15px; font-size: 11px; color: var(--gold-light); margin-bottom: 15px; }
+    .hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(24px, 6vw, 38px); font-weight: 800; margin-bottom: 12px; }
+    .hero h1 em { color: var(--gold-light); font-style: normal; }
+    .hero p { font-size: 14px; max-width: 450px; margin: 0 auto 20px; opacity: 0.85; }
+    .hero-btn { display: inline-block; background: var(--gold); color: var(--navy); font-weight: 800; font-size: 15px; padding: 12px 32px; border-radius: 50px; text-decoration: none; transition: transform 0.2s; }
+    .hero-btn:hover { transform: translateY(-2px); }
+    .hero-trust { margin-top: 25px; display: flex; justify-content: center; gap: 25px; flex-wrap: wrap; font-size: 11px; opacity: 0.7; }
+    .hero-trust span::before { content: '✓ '; color: var(--gold-light); font-weight: bold; }
+    
+    .values-strip { background: var(--navy); padding: 12px 20px; display: flex; justify-content: center; gap: 35px; flex-wrap: wrap; }
+    .value-item { color: rgba(255,255,255,0.6); font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
+    .value-item::before { content: '◆'; color: var(--gold); font-size: 8px; }
+    
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+    section { padding: 50px 0; }
+    .section-label { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+    .section-title { font-family: 'Playfair Display', serif; font-size: clamp(22px, 5vw, 30px); font-weight: 800; color: var(--navy); margin-bottom: 10px; }
+    .section-sub { color: var(--text-light); font-size: 14px; max-width: 550px; }
+    
+    .pricing-card { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%); border-radius: 24px; padding: 30px 28px; color: white; text-align: center; margin-top: 25px; }
+    .price-badge { background: var(--gold); color: var(--navy); font-weight: 800; font-size: 10px; padding: 4px 12px; border-radius: 50px; display: inline-block; margin-bottom: 12px; }
+    .price-title { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; }
+    .price-amount { font-size: 52px; font-weight: 800; color: var(--gold-light); margin: 12px 0; }
+    .price-amount sup { font-size: 24px; }
+    .price-features { list-style: none; text-align: left; margin: 20px 0 22px; }
+    .price-features li { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .price-features li::before { content: '✓'; background: var(--gold); color: var(--navy); width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+    .price-cta { display: block; background: var(--gold); color: var(--navy); font-weight: 800; padding: 12px; border-radius: 50px; text-decoration: none; font-size: 14px; }
+    
+    .enroll-section { background: linear-gradient(135deg, var(--green) 0%, var(--green-light) 100%); color: white; scroll-margin-top: 80px; }
+    .enroll-section .section-title { color: white; }
+    .enroll-section .section-label { color: var(--gold-light); }
+    .form-card { background: white; border-radius: 24px; padding: 28px 28px; margin-top: 28px; }
+    .service-preview { background: var(--navy); border-radius: 14px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+    .service-preview span { color: rgba(255,255,255,0.8); font-size: 13px; }
+    .service-preview strong { color: var(--gold-light); font-size: 22px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: var(--navy); margin-bottom: 5px; }
+    label span { color: #e53e3e; }
+    input { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 12px; font-size: 14px; font-family: 'Inter', sans-serif; transition: all 0.2s; }
+    input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(212,161,62,0.15); }
+    .submit-btn { width: 100%; background: var(--gold); color: var(--navy); font-weight: 800; font-size: 15px; padding: 12px; border: none; border-radius: 50px; cursor: pointer; transition: all 0.2s; }
+    .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-msg { margin-top: 14px; padding: 10px; border-radius: 10px; font-size: 12px; display: none; }
+    .form-msg.success { display: block; background: #e6f7e6; color: #2e7d32; }
+    .form-msg.error { display: block; background: #ffebee; color: #c62828; }
+    
+    footer { background: #07122e; color: rgba(255,255,255,0.5); text-align: center; padding: 30px 20px; }
+    footer img { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--gold); margin-bottom: 12px; }
+    footer a { color: var(--gold-light); text-decoration: none; }
+    .wa-fab { position: fixed; bottom: 20px; right: 20px; width: 52px; height: 52px; background: #25D366; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 200; box-shadow: 0 4px 15px rgba(37,211,102,0.4); }
+    .wa-fab i { font-size: 28px; color: white; }
+    .recaptcha-note { font-size: 10px; text-align: center; margin-top: 14px; color: #94a3b8; }
+    
+    /* Skeleton Loading */
+    .skeleton { background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 12px; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    
+    @media (max-width: 640px) { .form-card { padding: 20px; } .hero-logo { width: 80px; height: 80px; } section { padding: 35px 0; } }
+  </style>
+</head>
+<body>
+
+<div class="top-register-bar">
+  <span>🍀 আয়কর রিটার্ন দাখিল করুন মাত্র <strong>৳৫০০-এ</strong> — দ্রুত ও নির্ভরযোগ্য</span>
+  <a class="top-reg-btn" href="#enroll">এখনই নিবন্ধন করুন ↓</a>
+</div>
+
+<nav>
+  <div class="nav-container">
+    <div class="logo">
+      <img class="logo-img" src="1000046648.jpg" alt="Logo" onerror="this.src='https://placehold.co/40x40'">
+      <div class="logo-text"><h2>Land-Tax & Associates</h2><span>Integrity · Accuracy · Trust</span></div>
+    </div>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-logo-wrapper"><img class="hero-logo" src="1000046648.jpg" alt="Logo" onerror="this.src='https://placehold.co/95x95'"></div>
+  <div class="hero-badge">🍀 বিশ্বস্ত ট্যাক্স সেবা প্রতিষ্ঠান</div>
+  <h1>Income Tax Return<br/><em>দ্রুত ও সহজে</em> দাখিল করুন</h1>
+  <p>মাত্র ৳৫০০-এ আপনার বার্ষিক আয়কর রিটার্ন জমা দিন</p>
+  <a href="#enroll" class="hero-btn">এখনই নিবন্ধন করুন →</a>
+  <div class="hero-trust"><span>নিরাপদ ও গোপনীয়</span><span>দ্রুত প্রক্রিয়াকরণ</span><span>বিশেষজ্ঞ সহায়তা</span></div>
+</section>
+
+<div class="values-strip"><div class="value-item">Integrity</div><div class="value-item">Accuracy</div><div class="value-item">Trust</div></div>
+
+<section><div class="container"><div class="section-label">আমাদের সার্ভিস</div>
+<div class="pricing-card"><div class="price-badge">⭐ সবচেয়ে জনপ্রিয়</div><div class="price-title">Income Tax Return দাখিল</div><div class="price-amount"><sup>৳</sup>500</div>
+
+<a href="#enroll" class="price-cta">এখনই আবেদন করুন →</a></div></div></section>
+
+<section class="enroll-section" id="enroll"><div class="container"><div class="section-label">নিবন্ধন</div><h2 class="section-title">আজই আবেদন করুন</h2>
+<div class="form-card">
+  <div class="service-preview"><span><i class="fas fa-file-invoice"></i> Income Tax Return দাখিল</span><strong>৳৫০০</strong></div>
+  <div class="form-group"><label>Name <span>*</span></label><input type="text" id="fullName" placeholder="Your Full Name"></div>
+  <div class="form-group"><label>WhatsApp Number <span>*</span></label><input type="tel" id="whatsapp" placeholder="018XXXXXXXX" maxlength="11"></div>
+  <div class="form-group"><label>Bank Name <span>*</span></label><input type="text" id="bankName" placeholder="Ex: Global Islami Bank"></div>
+  <button class="submit-btn" id="submitBtn">আবেদন জমা দিন →</button>
+  <div id="formMsg" class="form-msg"></div>
+  <div class="recaptcha-note">This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply.</div>
+</div></div></section>
+
+<footer>
+  <img src="1000046648.jpg" alt="Logo">
+  <p><strong>Land-Tax & Associates</strong></p>
+  <p>Integrity · Accuracy · Trust</p>
+  <p>📞 WhatsApp: <a href="https://wa.me/8801537018457">01537-018457</a></p>
+  <p>✉️ ইমেইল: <a href="mailto:landtaxassociates@gmail.com">landtaxassociates@gmail.com</a></p>
+  <p style="margin-top: 12px; font-size: 12px;">© 2026 Land-Tax & Associates. সর্বস্বত্ব সংরক্ষিত।</p>
+</footer>
+
+<a class="wa-fab" href="https://wa.me/8801537018457"><i class="fab fa-whatsapp"></i></a>
+
+<script>
+  // Optimized - Defer Firebase initialization until needed
+  const RECAPTCHA_SITE_KEY = "6Lc2JB0tAAAAAK1Zz-pBoXm4x4b1_mjNWlOAynvp";
+  
+  // Rate limiting
+  let lastSubmissionTime = 0;
+  const MIN_SUBMISSION_INTERVAL = 30000;
+  let submissionAttempts = 0;
+  let attemptResetTime = Date.now();
+
+  function checkRateLimit() {
+    const now = Date.now();
+    if (now - attemptResetTime > 3600000) {
+      submissionAttempts = 0;
+      attemptResetTime = now;
+    }
+    if (submissionAttempts >= 5) {
+      return { allowed: false, reason: "আপনি এক ঘন্টায় অনেকবার আবেদন করেছেন। দয়া করে কিছুক্ষণ পর চেষ্টা করুন।" };
+    }
+    if (now - lastSubmissionTime < MIN_SUBMISSION_INTERVAL) {
+      const waitSeconds = Math.ceil((MIN_SUBMISSION_INTERVAL - (now - lastSubmissionTime)) / 1000);
+      return { allowed: false, reason: `দয়া করে ${waitSeconds} সেকেন্ড পর আবার চেষ্টা করুন।` };
+    }
+    return { allowed: true, reason: null };
+  }
+
+  // Cloud Function endpoint that verifies the reCAPTCHA token server-side
+  const VERIFY_ENDPOINT = "https://us-central1-land-tax-8744a.cloudfunctions.net/verifyRecaptcha";
+
+  function getRecaptchaToken() {
+    return new Promise((resolve, reject) => {
+      if (typeof grecaptcha === 'undefined') {
+        reject(new Error("reCAPTCHA লোড হয়নি, পেজ রিফ্রেশ করে আবার চেষ্টা করুন।"));
+        return;
+      }
+      grecaptcha.ready(function() {
+        grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' })
+          .then(resolve)
+          .catch(() => reject(new Error("reCAPTCHA token তৈরি করা যায়নি।")));
+      });
+    });
+  }
+
+  // Verify token with backend (Cloud Function holds the secret key)
+  async function verifyRecaptchaToken(token) {
+    const res = await fetch(VERIFY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    if (!res.ok) throw new Error("reCAPTCHA verify request ব্যর্থ হয়েছে।");
+    const data = await res.json();
+    if (!data.success || (typeof data.score === 'number' && data.score < 0.5)) {
+      throw new Error("reCAPTCHA যাচাই ব্যর্থ হয়েছে। আপনি মানুষ নয় বলে মনে হচ্ছে।");
+    }
+    return true;
+  }
+
+  // Firebase initialized on first submit (lazy loading)
+  let firebaseInitialized = false;
+  let db = null;
+  let customersRef = null;
+
+  function initFirebase() {
+    if (firebaseInitialized) return;
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqt6uCDoJhU4LWWHk1eFM_d4cVUeeU_V8",
+      authDomain: "land-tax-8744a.firebaseapp.com",
+      databaseURL: "https://land-tax-8744a-default-rtdb.firebaseio.com",
+      projectId: "land-tax-8744a",
+      storageBucket: "land-tax-8744a.firebasestorage.app"
+    };
+    if (typeof firebase !== 'undefined') {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      customersRef = db.ref('customers');
+      firebaseInitialized = true;
+    }
+  }
+
+  const submitBtn = document.getElementById('submitBtn');
+  const formMsg = document.getElementById('formMsg');
+
+  submitBtn.onclick = async function() {
+    const name = document.getElementById('fullName').value.trim();
+    const whatsapp = document.getElementById('whatsapp').value.trim();
+    const bank = document.getElementById('bankName').value.trim();
+
+    formMsg.className = 'form-msg';
+    
+    // Validate
+    if (!name || !whatsapp || !bank) {
+      formMsg.textContent = '⚠️ সকল তথ্য পূরণ করুন।';
+      formMsg.className = 'form-msg error';
+      return;
+    }
+    if (name.length < 3) {
+      formMsg.textContent = '⚠️ নাম কমপক্ষে ৩ অক্ষরের হতে হবে।';
+      formMsg.className = 'form-msg error';
+      return;
+    }
+    if (!/^01[3-9]\d{8}$/.test(whatsapp)) {
+      formMsg.textContent = '⚠️ সঠিক WhatsApp নম্বর দিন (যেমন: 01712345678)';
+      formMsg.className = 'form-msg error';
+      return;
+    }
+    
+    const rateCheck = checkRateLimit();
+    if (!rateCheck.allowed) {
+      formMsg.textContent = rateCheck.reason;
+      formMsg.className = 'form-msg error';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'প্রক্রিয়াকরণ...';
+
+    try {
+      initFirebase();
+
+      submitBtn.textContent = 'যাচাই করা হচ্ছে...';
+      const token = await getRecaptchaToken();
+      await verifyRecaptchaToken(token);
+
+      if (!customersRef) throw new Error('Firebase not ready');
+      
+      submitBtn.textContent = 'জমা দেওয়া হচ্ছে...';
+      
+      await customersRef.push({
+        fullName: name,
+        whatsapp: whatsapp,
+        bankName: bank,
+        timestamp: Date.now(),
+        service: "Income Tax Return – ৳500"
+      });
+      
+      lastSubmissionTime = Date.now();
+      submissionAttempts++;
+      
+      formMsg.textContent = '✅ আপনার আবেদন সফলভাবে জমা হয়েছে! শীঘ্রই WhatsApp-এ যোগাযোগ করা হবে।';
+      formMsg.className = 'form-msg success';
+      
+      document.getElementById('fullName').value = '';
+      document.getElementById('whatsapp').value = '';
+      document.getElementById('bankName').value = '';
+      
+      setTimeout(() => { formMsg.className = 'form-msg'; }, 4000);
+    } catch(error) {
+      console.error('Error:', error);
+      formMsg.textContent = '❌ ' + (error && error.message ? error.message : 'কিছু সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      formMsg.className = 'form-msg error';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'আবেদন জমা দিন →';
+    }
+  };
+  
+  // Preload Firebase on idle
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => { initFirebase(); });
+  } else {
+    setTimeout(initFirebase, 2000);
+  }
+</script>
+</body>
+</html>
