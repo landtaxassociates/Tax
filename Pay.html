@@ -1,0 +1,462 @@
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Land-Tax & Associates</title>
+
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getFirestore, collection, addDoc, onSnapshot,
+    doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ══════════════════════════════════════════════════
+  //  🔥 আপনার Firebase Config এখানে বসান
+  // ══════════════════════════════════════════════════
+  const firebaseConfig = {
+    apiKey:            "AIzaSyDAh4VT5V8GK1Jj-UGswU2SC0O53nwCJAM",
+    authDomain:        "order-management-7ca77.firebaseapp.com",
+    projectId:         "order-management-7ca77",
+    storageBucket:     "order-management-7ca77.firebasestorage.app",
+    messagingSenderId: "435590857323",
+    appId:             "1:435590857323:web:143429f69e94306e1a672e",
+    measurementId:     "G-XGRD1QXHR8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getFirestore(app);
+  const ordersRef = collection(db, "orders");
+
+  // ── Status badge colours ──────────────────────────
+  const paymentStatusColors = {
+    "Pending Payment": "#f59e0b",
+    "Paid Partial":    "#3b82f6",
+    "Paid":            "#10b981",
+    "Cancelled":       "#ef4444"
+  };
+  const eReturnStatusColors = {
+    "Pending":    "#f59e0b",
+    "Processing": "#8b5cf6",
+    "Submitted":  "#059669"
+  };
+
+  // ── Render orders ─────────────────────────────────
+  function renderOrders(orders) {
+    const tbody = document.getElementById("orderTableBody");
+    const empty = document.getElementById("emptyState");
+    tbody.innerHTML = "";
+
+    if (orders.length === 0) {
+      empty.style.display = "flex";
+      return;
+    }
+    empty.style.display = "none";
+
+    orders.forEach(({ id, data }) => {
+      const tr = document.createElement("tr");
+      const oColor = paymentStatusColors[data.paymentStatus]    || "#6b7280";
+      const dColor = eReturnStatusColors[data.eReturnStatus] || "#6b7280";
+
+      tr.innerHTML = `
+        <td class="td-name">
+          <div class="avatar">${data.customerName?.[0]?.toUpperCase() || "?"}</div>
+          <div>
+            <div class="fw-600">${data.customerName || "—"}</div>
+            <div class="sub-text">${data.mobile || ""}</div>
+          </div>
+        </td>
+        <td><span class="bank-tag">${data.bankName || "—"}</span></td>
+        <td>
+          <select class="status-sel" data-id="${id}" data-field="paymentStatus"
+                  style="border-color:${oColor};color:${oColor}">
+            ${["Pending Payment","Paid Partial","Paid","Cancelled"].map(s=>
+              `<option value="${s}" ${s===data.paymentStatus?"selected":""}>${s}</option>`
+            ).join("")}
+          </select>
+        </td>
+        <td>
+          <select class="status-sel" data-id="${id}" data-field="eReturnStatus"
+                  style="border-color:${dColor};color:${dColor}">
+            ${["Pending","Processing","Submitted"].map(s=>
+              `<option value="${s}" ${s===data.eReturnStatus?"selected":""}>${s}</option>`
+            ).join("")}
+          </select>
+        </td>
+        <td class="td-date">${data.createdAt?.toDate
+          ? data.createdAt.toDate().toLocaleDateString("bn-BD")
+          : "—"}</td>
+        <td>
+          <button class="btn-del" data-id="${id}" title="মুছুন">✕</button>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+
+    // Status change
+    document.querySelectorAll(".status-sel").forEach(sel => {
+      sel.addEventListener("change", async e => {
+        const { id, field } = e.target.dataset;
+        await updateDoc(doc(db, "orders", id), { [field]: e.target.value });
+        showToast("আপডেট হয়েছে ✓");
+      });
+    });
+
+    // Delete
+    document.querySelectorAll(".btn-del").forEach(btn => {
+      btn.addEventListener("click", async e => {
+        if (!confirm("এই অর্ডারটি মুছে ফেলবেন?")) return;
+        await deleteDoc(doc(db, "orders", e.target.dataset.id));
+        showToast("অর্ডার মুছে ফেলা হয়েছে");
+      });
+    });
+  }
+
+  // ── Live listener ─────────────────────────────────
+  const q = query(ordersRef, orderBy("createdAt", "desc"));
+  onSnapshot(q, snapshot => {
+    const orders = snapshot.docs.map(d => ({ id: d.id, data: d.data() }));
+    document.getElementById("totalCount").textContent = orders.length;
+    renderOrders(orders);
+  }, err => {
+    console.error(err);
+    document.getElementById("errorBanner").style.display = "flex";
+  });
+
+  // ── Add order ─────────────────────────────────────
+  window.addOrder = async function() {
+    const get = id => document.getElementById(id).value.trim();
+    const customerName    = get("inp-name");
+    const mobile          = get("inp-mobile");
+    const bankName        = get("inp-bank");
+    const paymentStatus   = get("inp-orderStatus");
+    const eReturnStatus   = get("inp-deliveryStatus");
+
+    if (!customerName || !mobile) {
+      alert("নাম ও মোবাইল নম্বর আবশ্যক।"); return;
+    }
+    const btn = document.getElementById("submitBtn");
+    btn.disabled = true; btn.textContent = "সংরক্ষণ হচ্ছে…";
+
+    try {
+      await addDoc(ordersRef, {
+        customerName, mobile, bankName,
+        paymentStatus, eReturnStatus,
+        createdAt: serverTimestamp()
+      });
+      ["inp-name","inp-mobile","inp-bank"].forEach(id =>
+        document.getElementById(id).value = "");
+      document.getElementById("inp-orderStatus").value    = "Pending Payment";
+      document.getElementById("inp-deliveryStatus").value = "Pending";
+      closeModal();
+      showToast("অর্ডার যোগ হয়েছে ✓");
+    } catch(e) {
+      alert("ত্রুটি: " + e.message);
+    }
+    btn.disabled = false; btn.textContent = "অর্ডার সংরক্ষণ করুন";
+  };
+
+  // ── Toast ─────────────────────────────────────────
+  window.showToast = function(msg) {
+    const t = document.getElementById("toast");
+    t.textContent = msg; t.classList.add("show");
+    setTimeout(() => t.classList.remove("show"), 2500);
+  };
+</script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0f1117;
+    --surface: #1a1d27;
+    --card:    #22263a;
+    --border:  #2e3250;
+    --accent:  #6366f1;
+    --accent2: #818cf8;
+    --text:    #e2e8f0;
+    --muted:   #94a3b8;
+    --red:     #ef4444;
+    --radius:  12px;
+  }
+
+  body {
+    font-family: 'Hind Siliguri', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
+    padding: 28px 32px 22px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid #3730a3;
+  }
+  .header-left h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.3px; }
+  .header-left p  { color: #a5b4fc; font-size: .85rem; margin-top: 2px; }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius);
+    padding: 10px 22px; font-size: .95rem;
+    font-family: inherit; cursor: pointer; font-weight: 600;
+    transition: background .2s, transform .1s;
+  }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+
+  /* ── Stats row ── */
+  .stats { display: flex; gap: 16px; padding: 24px 32px 0; }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px 24px; flex: 1;
+  }
+  .stat-card .label { font-size: .8rem; color: var(--muted); margin-bottom: 6px; }
+  .stat-card .value { font-size: 2rem; font-weight: 700; color: var(--accent2); }
+
+  /* ── Table container ── */
+  .table-wrap {
+    margin: 20px 32px 32px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    background: #1a1d27; padding: 14px 16px;
+    text-align: left; font-size: .78rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .6px;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .15s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(99,102,241,.06); }
+  td { padding: 14px 16px; font-size: .9rem; vertical-align: middle; }
+
+  .td-name { display: flex; align-items: center; gap: 12px; }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: linear-gradient(135deg,#6366f1,#8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1rem; flex-shrink: 0;
+  }
+  .fw-600 { font-weight: 600; }
+  .sub-text { font-size: .8rem; color: var(--muted); margin-top: 2px; }
+
+  .bank-tag {
+    background: rgba(99,102,241,.15); color: var(--accent2);
+    padding: 3px 10px; border-radius: 20px; font-size: .8rem; font-weight: 500;
+  }
+
+  .status-sel {
+    border: 1.5px solid; border-radius: 8px;
+    padding: 5px 10px; background: transparent;
+    font-family: inherit; font-size: .82rem; cursor: pointer;
+    outline: none; font-weight: 600;
+  }
+  .status-sel option { background: var(--surface); color: var(--text); }
+
+  .td-date { font-size: .82rem; color: var(--muted); }
+
+  .btn-del {
+    background: rgba(239,68,68,.12); color: var(--red);
+    border: 1px solid rgba(239,68,68,.3); border-radius: 8px;
+    width: 32px; height: 32px; cursor: pointer;
+    font-size: .9rem; transition: background .2s;
+  }
+  .btn-del:hover { background: rgba(239,68,68,.25); }
+
+  /* ── Empty state ── */
+  #emptyState {
+    display: none; flex-direction: column; align-items: center;
+    justify-content: center; padding: 60px 20px; gap: 12px; color: var(--muted);
+  }
+  #emptyState .icon { font-size: 3rem; }
+
+  /* ── Error banner ── */
+  #errorBanner {
+    display: none; align-items: center; gap: 12px;
+    background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.3);
+    border-radius: var(--radius); padding: 14px 20px;
+    margin: 0 32px; color: #fca5a5; font-size: .9rem;
+  }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,.6); backdrop-filter: blur(4px);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px; width: min(480px,94vw);
+    animation: slideUp .25s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+  }
+  .modal h2 { font-size: 1.15rem; margin-bottom: 20px; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label {
+    display: block; font-size: .82rem; color: var(--muted);
+    margin-bottom: 6px; font-weight: 500;
+  }
+  .form-group input, .form-group select {
+    width: 100%; background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 14px; color: var(--text);
+    font-family: inherit; font-size: .92rem; outline: none;
+    transition: border-color .2s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--accent);
+  }
+  .form-group select option { background: var(--card); }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+  .btn-ghost {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); border-radius: 10px; padding: 10px 20px;
+    font-family: inherit; font-size: .92rem; cursor: pointer;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: #10b981; color: #fff; padding: 10px 22px; border-radius: 30px;
+    font-size: .9rem; opacity: 0; transition: all .3s; z-index: 200; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ── Firebase note ── */
+  .config-note {
+    margin: 0 32px 0; background: rgba(245,158,11,.08);
+    border: 1px solid rgba(245,158,11,.3); border-radius: var(--radius);
+    padding: 14px 18px; font-size: .85rem; color: #fcd34d; line-height: 1.6;
+  }
+  .config-note strong { color: #fbbf24; }
+
+  @media(max-width:680px) {
+    .header, .stats, .table-wrap, .config-note, #errorBanner { margin-left: 12px; margin-right: 12px; }
+    .stats { flex-direction: column; }
+    .table-wrap { overflow-x: auto; }
+    th:nth-child(5), td:nth-child(5) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-left">
+    <h1>Land-Tax & Associates</h1>
+    <p>INTEGRITY · ACCURACY · TRUST</p>
+  </div>
+  <button class="btn-primary" onclick="openModal()">+ নতুন অর্ডার</button>
+</div>
+
+
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat-card">
+    <div class="label">মোট অর্ডার</div>
+    <div class="value" id="totalCount">০</div>
+  </div>
+</div>
+
+<!-- Error Banner -->
+<div id="errorBanner">
+  🔴 Firebase সংযোগে সমস্যা। Config সঠিক আছে কিনা এবং Firestore Rules চেক করুন।
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>কাস্টমার</th>
+        <th>ব্যাংক</th>
+        <th>পেমেন্ট স্ট্যাটাস</th>
+        <th>ডেলিভারি স্ট্যাটাস</th>
+        <th>তারিখ</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="orderTableBody"></tbody>
+  </table>
+  <div id="emptyState">
+    <div class="icon">📋</div>
+    <div>কোনো অর্ডার নেই — উপরে "+ নতুন অর্ডার" বাটনে ক্লিক করুন</div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>নতুন অর্ডার যোগ করুন</h2>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>কাস্টমারের নাম *</label>
+        <input id="inp-name" type="text" placeholder="যেমন: রাহেলা বেগম" />
+      </div>
+      <div class="form-group">
+        <label>মোবাইল নম্বর *</label>
+        <input id="inp-mobile" type="tel" placeholder="01XXXXXXXXX" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>ব্যাংকের নাম</label>
+      <input id="inp-bank" type="text" placeholder="যেমন: bKash, Nagad, Dutch Bangla" />
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label>পেমেন্ট স্ট্যাটাস</label>
+        <select id="inp-orderStatus">
+          <option>Pending Payment</option>
+          <option>Paid Partial</option>
+          <option>Paid</option>
+          <option>Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ডেলিভারি স্ট্যাটাস</label>
+        <select id="inp-deliveryStatus">
+          <option>Pending</option>
+          <option>Processing</option>
+          <option>Submitted</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal()">বাতিল</button>
+      <button class="btn-primary" id="submitBtn" onclick="addOrder()">অর্ডার সংরক্ষণ করুন</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  function openModal()  { document.getElementById("modalOverlay").classList.add("open"); }
+  function closeModal() { document.getElementById("modalOverlay").classList.remove("open"); }
+  document.getElementById("modalOverlay").addEventListener("click", e => {
+    if (e.target === e.currentTarget) closeModal();
+  });
+</script>
+</body>
+</html>

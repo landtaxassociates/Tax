@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>নতুন অর্ডার – Land-Tax & Associates</title>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDAh4VT5V8GK1Jj-UGswU2SC0O53nwCJAM",
+    authDomain: "order-management-7ca77.firebaseapp.com",
+    projectId: "order-management-7ca77",
+    storageBucket: "order-management-7ca77.firebasestorage.app",
+    messagingSenderId: "435590857323",
+    appId: "1:435590857323:web:143429f69e94306e1a672e",
+    measurementId: "G-XGRD1QXHR8"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  async function saveOrder() {
+    const btn = document.getElementById("save-btn");
+    const msg = document.getElementById("msg");
+
+    const tinNumber     = document.getElementById("f-tin").value.trim();
+    const customerName  = document.getElementById("f-name").value.trim();
+    const mobile        = document.getElementById("f-mobile").value.trim();
+    const bankName      = document.getElementById("f-bank").value.trim();
+    const amount        = Number(document.getElementById("f-amount").value);
+    const paymentStatus = document.getElementById("f-payment").value;
+    const eReturnStatus = document.getElementById("f-ereturn").value;
+
+    // Validation
+    if (!customerName) { showMsg("গ্রাহকের নাম দিন।", "error"); return; }
+    if (!mobile)        { showMsg("মোবাইল নম্বর দিন।", "error"); return; }
+
+    btn.disabled = true;
+    btn.textContent = "সংরক্ষণ হচ্ছে...";
+
+    try {
+      await db.collection("orders").add({
+        tinNumber,
+        customerName,
+        mobile,
+        bankName,
+        amount,
+        paymentStatus,
+        eReturnStatus,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      showMsg("✅ অর্ডার সফলভাবে সংরক্ষণ হয়েছে!", "success");
+      resetForm();
+    } catch (e) {
+      showMsg("❌ সমস্যা হয়েছে: " + e.message, "error");
+    }
+
+    btn.disabled = false;
+    btn.textContent = "💾 সংরক্ষণ করুন";
+  }
+
+  function resetForm() {
+    document.getElementById("f-tin").value      = "";
+    document.getElementById("f-name").value     = "";
+    document.getElementById("f-mobile").value   = "";
+    document.getElementById("f-bank").value     = "";
+    document.getElementById("f-amount").value   = "";
+    document.getElementById("f-payment").value  = "Pending Payment";
+    document.getElementById("f-ereturn").value  = "Pending";
+    document.getElementById("f-tin").focus();
+  }
+
+  function showMsg(text, type) {
+    const msg = document.getElementById("msg");
+    msg.textContent = text;
+    msg.className = "msg " + type;
+    msg.style.display = "block";
+    setTimeout(() => { msg.style.display = "none"; }, 4000);
+  }
+</script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #f0f4ff;
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, #1a237e 0%, #283593 100%);
+    color: #fff;
+    padding: 16px 20px;
+    text-align: center;
+    box-shadow: 0 2px 10px rgba(0,0,50,0.3);
+    position: relative;
+  }
+  header .icon { font-size: 32px; margin-bottom: 4px; }
+  header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+  header p  { font-size: 11px; color: #c9a84c; letter-spacing: 1px; margin-top: 2px; }
+  header .sub { font-size: 13px; color: #c5cae9; margin-top: 6px; }
+
+  /* NAV LINKS */
+  .nav-links {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    display: flex;
+    gap: 8px;
+  }
+  .nav-btn {
+    display: inline-block;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1.5px solid rgba(255,255,255,0.35);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: none;
+    letter-spacing: 0.4px;
+    transition: background 0.2s, transform 0.1s;
+  }
+  .nav-btn:hover  { background: rgba(255,255,255,0.25); }
+  .nav-btn:active { transform: scale(0.96); }
+
+  @media (max-width: 420px) {
+    .nav-links { position: static; justify-content: center; margin-bottom: 10px; }
+  }
+
+  /* CARD */
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px 20px;
+    margin: 20px 16px 0;
+    box-shadow: 0 2px 16px rgba(0,0,50,0.1);
+  }
+
+  /* FORM */
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .form-group label span.req { color: #c62828; }
+
+  .form-group input,
+  .form-group select {
+    width: 100%;
+    padding: 13px 14px;
+    border: 1.5px solid #dde3f0;
+    border-radius: 10px;
+    font-size: 15px;
+    color: #1a1a2e;
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .form-group input:focus,
+  .form-group select:focus {
+    border-color: #1a237e;
+    box-shadow: 0 0 0 3px rgba(26,35,126,0.08);
+  }
+  .form-group input::placeholder { color: #b0b7c3; }
+
+  /* select arrow */
+  .select-wrap { position: relative; }
+  .select-wrap::after {
+    content: "▾";
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6b7280;
+    pointer-events: none;
+    font-size: 14px;
+  }
+
+  /* divider label */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a237e;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 2px solid #e8eaf6;
+    padding-bottom: 6px;
+    margin-bottom: 16px;
+    margin-top: 4px;
+  }
+
+  /* SAVE BUTTON */
+  #save-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, #1a237e, #283593);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 14px rgba(26,35,126,0.3);
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  #save-btn:active  { transform: scale(0.98); opacity: 0.9; }
+  #save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* RESET BUTTON */
+  #reset-btn {
+    width: 100%;
+    padding: 13px;
+    background: #f0f4ff;
+    color: #1a237e;
+    border: 1.5px solid #c5cae9;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background 0.2s;
+  }
+  #reset-btn:active { background: #e8eaf6; }
+
+  /* MESSAGE */
+  .msg {
+    display: none;
+    padding: 14px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .msg.success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+  .msg.error   { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    margin-top: 24px;
+    color: #9ca3af;
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-links">
+    <a href="Pay.html" class="nav-btn">Payment</a>
+    <a href="Man.html" class="nav-btn">Dashboard</a>
+  </div>
+  <div class="icon">🍀</div>
+  <h1>Land-Tax & Associates</h1>
+  <p>INTEGRITY · ACCURACY · TRUST</p>
+  <div class="sub">নতুন অর্ডার এন্ট্রি</div>
+</header>
+
+<div class="card">
+
+  <div id="msg" class="msg"></div>
+
+  <!-- Client Info -->
+  <div class="section-label">👤 গ্রাহকের তথ্য</div>
+
+  <div class="form-group">
+    <label>TIN Number</label>
+    <input type="text" id="f-tin" placeholder="TIN নম্বর লিখুন" inputmode="numeric">
+  </div>
+
+  <div class="form-group">
+    <label>গ্রাহকের নাম <span class="req">*</span></label>
+    <input type="text" id="f-name" placeholder="Rahim Uddin">
+  </div>
+
+  <div class="form-group">
+    <label>মোবাইল নম্বর <span class="req">*</span></label>
+    <input type="tel" id="f-mobile" placeholder="01XXXXXXXXX" inputmode="tel">
+  </div>
+
+  <!-- Payment Info -->
+  <div class="section-label" style="margin-top:20px;">💳 পেমেন্ট তথ্য</div>
+
+  <div class="form-group">
+    <label>ব্যাংক / MFS</label>
+    <input type="text" id="f-bank" placeholder="bKash / Nagad / Islami Bank">
+  </div>
+
+  <div class="form-group">
+    <label>পরিমাণ (টাকা)</label>
+    <input type="number" id="f-amount" placeholder="0" inputmode="numeric">
+  </div>
+
+  <!-- Status -->
+  <div class="section-label" style="margin-top:20px;">📋 স্ট্যাটাস</div>
+
+  <div class="form-group">
+    <label>Payment Status</label>
+    <div class="select-wrap">
+      <select id="f-payment">
+        <option value="Pending Payment">Pending Payment</option>
+        <option value="Paid Partial">Paid Partial</option>
+        <option value="Paid">Paid</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>eReturn Status</label>
+    <div class="select-wrap">
+      <select id="f-ereturn">
+        <option value="Pending">Pending</option>
+        <option value="Processing">Processing</option>
+        <option value="Submitted">Submitted</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Buttons -->
+  <button id="save-btn" onclick="saveOrder()">💾 সংরক্ষণ করুন</button>
+  <button id="reset-btn" onclick="resetForm()">🔄 ফর্ম রিসেট করুন</button>
+
+</div>
+
+<div class="footer">Land-Tax & Associates &copy; 2025</div>
+
+</body>
+</html>

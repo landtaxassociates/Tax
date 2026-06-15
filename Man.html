@@ -1,0 +1,493 @@
+
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Land-Tax & Associates – Order Management</title>
+
+<!-- Firebase (compat / classic SDK — works when the file is opened directly with file://, no CORS module issue) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDAh4VT5V8GK1Jj-UGswU2SC0O53nwCJAM",
+    authDomain: "order-management-7ca77.firebaseapp.com",
+    projectId: "order-management-7ca77",
+    storageBucket: "order-management-7ca77.firebasestorage.app",
+    messagingSenderId: "435590857323",
+    appId: "1:435590857323:web:143429f69e94306e1a672e",
+    measurementId: "G-XGRD1QXHR8"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  let orders = [];
+  let editingId = null;
+  let orderCounter = 1;
+
+  // ---------- helpers ----------
+  function fmtDate(ts) {
+    if (!ts) return "–";
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return d.toLocaleDateString("bn-BD", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  // ---------- WhatsApp click-to-chat link ----------
+  function waLink(mobile, text) {
+    let num = String(mobile || "").replace(/\D/g, "");      // digits only
+    if (num.startsWith("0")) num = "88" + num;               // 01XXXXXXXXX -> 8801XXXXXXXXX
+    else if (!num.startsWith("880")) num = "880" + num;      // safety fallback
+    let url = `https://api.whatsapp.com/send/?phone=${num}&type=phone_number&app_absent=0`;
+    if (text) url += `&text=${encodeURIComponent(text)}`;
+    else url += `&text`;
+    return url;
+  }
+
+  function genOrderId() {
+    const n = String(orderCounter++).padStart(4, "0");
+    return `ORD-${n}`;
+  }
+
+  function paymentBadge(s) {
+    const map = {
+      "Pending Payment": ["#FFA500", "#fff3e0"],
+      "Paid Partial":    ["#1565c0", "#e3f2fd"],
+      "Paid":            ["#2e7d32", "#e8f5e9"],
+      "Cancelled":       ["#c62828", "#ffebee"],
+    };
+    const [color, bg] = map[s] || ["#555", "#eee"];
+    return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${s}</span>`;
+  }
+
+  function eReturnBadge(s) {
+    const map = {
+      "Pending":    ["#e65100", "#fff3e0"],
+      "Processing": ["#1565c0", "#e3f2fd"],
+      "Submitted":  ["#2e7d32", "#e8f5e9"],
+    };
+    const [color, bg] = map[s] || ["#555", "#eee"];
+    return `<span style="background:${bg};color:${color};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;">${s}</span>`;
+  }
+
+  // ---------- real-time listener ----------
+  function startListener() {
+    db.collection("orders").orderBy("createdAt", "desc")
+      .onSnapshot(snap => {
+        orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderAll();
+      }, err => {
+        console.error("Firestore listener error:", err);
+        document.getElementById("order-body").innerHTML = `
+          <tr><td colspan="9" style="text-align:center;padding:32px;color:#c62828;">
+            ⚠️ ডেটা লোড করতে সমস্যা হয়েছে।<br>
+            <small>${err.message}</small><br>
+            <small>Firebase Console → Firestore Database → Rules চেক করুন (read/write অনুমতি আছে কিনা)।</small>
+          </td></tr>`;
+      });
+  }
+
+  // ---------- render ----------
+  function renderAll() {
+    renderDashboard();
+    renderTable();
+  }
+
+  function renderDashboard() {
+    const total   = orders.length;
+    const totalAmt = orders.reduce((s, o) => s + Number(o.amount || 0), 0);
+    const paid    = orders.filter(o => o.paymentStatus === "Paid").reduce((s, o) => s + Number(o.amount || 0), 0);
+    const pending = orders.filter(o => ["Pending Payment", "Paid Partial"].includes(o.paymentStatus)).reduce((s, o) => s + Number(o.amount || 0), 0);
+
+    document.getElementById("stat-orders").textContent = total;
+    document.getElementById("stat-total").textContent  = "৳" + totalAmt.toLocaleString("bn-BD");
+    document.getElementById("stat-paid").textContent   = "৳" + paid.toLocaleString("bn-BD");
+    document.getElementById("stat-pending").textContent = "৳" + pending.toLocaleString("bn-BD");
+  }
+
+  function renderTable(filter = "") {
+    const tbody = document.getElementById("order-body");
+    const q = filter.toLowerCase();
+    const filtered = q
+      ? orders.filter(o =>
+          (o.customerName || "").toLowerCase().includes(q) ||
+          (o.mobile || "").includes(q))
+      : orders;
+
+    if (!filtered.length) {
+      tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:32px;color:#999;">কোনো অর্ডার পাওয়া যায়নি</td></tr>`;
+      return;
+    }
+
+    tbody.innerHTML = filtered.map(o => `
+      <tr id="row-${o.id}">
+        <td>${o.tinNumber || "–"}</td>
+        <td>${fmtDate(o.createdAt)}</td>
+        <td><strong>${o.customerName || "–"}</strong></td>
+        <td>
+          <a href="${waLink(o.mobile)}" target="_blank" style="color:#25D366;text-decoration:none;">
+             ${o.mobile || "–"}
+          </a>
+        </td>
+        <td>${o.bankName || "–"}</td>
+        <td>৳${Number(o.amount||0).toLocaleString("bn-BD")}</td>
+        <td>${paymentBadge(o.paymentStatus)}</td>
+        <td>${eReturnBadge(o.eReturnStatus)}</td>
+        <td>
+          <button onclick="window.editOrder('${o.id}')" style="background:#1565c0;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;">✏️ Edit</button>
+          <button onclick="window.deleteOrder('${o.id}')" style="background:#c62828;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;margin-left:4px;">🗑</button>
+          <button onclick="window.printInvoice('${o.id}')" style="background:#2e7d32;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;margin-left:4px;">🧾</button>
+          <a href="${waLink(o.mobile, `Dear ${o.customerName || "Customer"},\nYour TIN: ${o.tinNumber || "–"}\neReturn Status: ${o.eReturnStatus || "–"}\nPayment Status: ${o.paymentStatus || "–"}\n\nLand-Tax & Associates`)}" target="_blank" style="background:#25D366;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:12px;margin-left:4px;text-decoration:none;display:inline-block;">💬</a>
+        </td>
+      </tr>
+    `).join("");
+  }
+
+  // ---------- add / edit ----------
+  window.openAddModal = () => {
+    editingId = null;
+    document.getElementById("modal-title").textContent = "নতুন অর্ডার যোগ করুন";
+    document.getElementById("f-name").value    = "";
+    document.getElementById("f-mobile").value  = "";
+    document.getElementById("f-bank").value    = "";
+    document.getElementById("f-amount").value  = "";
+    document.getElementById("f-ostatus").value = "Pending Payment";
+    document.getElementById("f-dstatus").value = "Pending";
+    document.getElementById("modal").style.display = "flex";
+  };
+
+  window.closeModal = () => {
+    document.getElementById("modal").style.display = "none";
+  };
+
+  window.editOrder = (id) => {
+    const o = orders.find(x => x.id === id);
+    if (!o) return;
+    editingId = id;
+    document.getElementById("modal-title").textContent = "অর্ডার সম্পাদনা";
+    document.getElementById("f-tin").value      = o.tinNumber || "";
+    document.getElementById("f-name").value    = o.customerName || "";
+    document.getElementById("f-mobile").value  = o.mobile || "";
+    document.getElementById("f-bank").value    = o.bankName || "";
+    document.getElementById("f-amount").value  = o.amount || "";
+    document.getElementById("f-ostatus").value = o.paymentStatus || "Pending Payment";
+    document.getElementById("f-dstatus").value = o.eReturnStatus || "Pending";
+    document.getElementById("modal").style.display = "flex";
+  };
+
+  window.saveOrder = async () => {
+    const data = {
+      tinNumber:       document.getElementById("f-tin").value.trim(),
+      customerName:    document.getElementById("f-name").value.trim(),
+      mobile:          document.getElementById("f-mobile").value.trim(),
+      bankName:        document.getElementById("f-bank").value.trim(),
+      amount:          Number(document.getElementById("f-amount").value),
+      paymentStatus:   document.getElementById("f-ostatus").value,
+      eReturnStatus:   document.getElementById("f-dstatus").value,
+    };
+    if (!data.customerName || !data.mobile) {
+      alert("নাম ও মোবাইল নম্বর আবশ্যক।"); return;
+    }
+    try {
+      if (editingId) {
+        await db.collection("orders").doc(editingId).update(data);
+      } else {
+        data.createdAt  = firebase.firestore.FieldValue.serverTimestamp();
+        await db.collection("orders").add(data);
+      }
+      closeModal();
+    } catch (e) {
+      alert("সংরক্ষণ ব্যর্থ: " + e.message);
+    }
+  };
+
+  window.deleteOrder = async (id) => {
+    if (!confirm("এই অর্ডারটি মুছতে চান?")) return;
+    try {
+      await db.collection("orders").doc(id).delete();
+    } catch (e) {
+      alert("ডিলিট ব্যর্থ: " + e.message);
+    }
+  };
+
+  // ---------- search ----------
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("search").addEventListener("input", e => renderTable(e.target.value));
+    startListener();
+  });
+
+  // ---------- invoice print ----------
+  window.printInvoice = (id) => {
+    const o = orders.find(x => x.id === id);
+    if (!o) return;
+    const w = window.open("", "_blank");
+    w.document.write(`
+      <html><head><title>Invoice ${o.tinNumber || "–"}</title>
+      <style>
+        body{font-family:Arial,sans-serif;padding:40px;max-width:600px;margin:auto;}
+        .logo{text-align:center;margin-bottom:20px;}
+        h2{text-align:center;color:#1a237e;}
+        table{width:100%;border-collapse:collapse;margin-top:20px;}
+        td,th{border:1px solid #ddd;padding:10px;}
+        th{background:#1a237e;color:#fff;}
+        .footer{text-align:center;margin-top:30px;color:#555;font-size:12px;}
+      </style></head><body>
+      <div class="logo"><strong style="font-size:22px;color:#1a237e;">🍀 LAND-TAX & ASSOCIATES</strong><br>
+      <small>Integrity. Accuracy. Trust.</small></div>
+      <h2>🧾 Invoice</h2>
+      <table>
+        <tr><th>TIN Number</th><td>${o.tinNumber || '–'}</td></tr>
+        <tr><th>তারিখ</th><td>${fmtDate(o.createdAt)}</td></tr>
+        <tr><th>গ্রাহকের নাম</th><td>${o.customerName}</td></tr>
+        <tr><th>মোবাইল</th><td>${o.mobile}</td></tr>
+        <tr><th>ব্যাংক/MFS</th><td>${o.bankName}</td></tr>
+        <tr><th>পরিমাণ</th><td>৳${Number(o.amount).toLocaleString("bn-BD")}</td></tr>
+        <tr><th>Payment Status</th><td>${o.paymentStatus||'–'}</td></tr>
+        <tr><th>eReturn Status</th><td>${o.eReturnStatus || '–'}</td></tr>
+      </table>
+      <div class="footer">ধন্যবাদ আপনার অর্ডারের জন্য! | Land-Tax & Associates</div>
+      <script>window.print();<\/script>
+      </body></html>
+    `);
+    w.document.close();
+  };
+
+  // ---------- Excel export ----------
+  window.exportExcel = () => {
+    const rows = [["TIN Number","তারিখ","গ্রাহক","মোবাইল","ব্যাংক","পরিমাণ","Payment Status","eReturn Status"]];
+    orders.forEach(o => rows.push([
+      o.tinNumber, fmtDate(o.createdAt), o.customerName, o.mobile,
+      o.bankName, o.amount, o.paymentStatus, o.eReturnStatus
+    ]));
+    const csv = rows.map(r => r.map(c => `"${c||""}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "orders.csv";
+    a.click();
+  };
+
+  // ---------- PDF export ----------
+  window.exportPDF = () => {
+    const w = window.open("", "_blank");
+    const rows = orders.map(o => `
+      <tr>
+        <td>${o.tinNumber||'–'}</td><td>${fmtDate(o.createdAt)}</td><td>${o.customerName}</td>
+        <td>${o.mobile}</td><td>${o.bankName}</td><td>৳${Number(o.amount||0).toLocaleString("bn-BD")}</td>
+        <td>${o.paymentStatus||'–'}</td><td>${o.eReturnStatus||'–'}</td>
+      </tr>`).join("");
+    w.document.write(`<html><head><title>All Orders</title>
+    <style>
+      body{font-family:Arial,sans-serif;padding:24px;}
+      h2{color:#1a237e;text-align:center;}
+      table{width:100%;border-collapse:collapse;font-size:12px;}
+      th{background:#1a237e;color:#fff;padding:6px;}
+      td{border:1px solid #ccc;padding:5px;}
+    </style></head><body>
+    <h2>🍀 Land-Tax & Associates – সকল অর্ডার</h2>
+    <table><tr><th>TIN Number</th><th>তারিখ</th><th>গ্রাহক</th><th>মোবাইল</th><th>ব্যাংক</th><th>পরিমাণ</th><th>অর্ডার</th><th>eReturn Status</th></tr>
+    ${rows}</table>
+    <script>window.print();<\/script></body></html>`);
+    w.document.close();
+  };
+</script>
+
+<style>
+  :root {
+    --navy: #1a237e;
+    --gold:  #c9a84c;
+    --green: #1b5e20;
+    --bg:    #f0f4ff;
+    --card:  #ffffff;
+    --text:  #1a1a2e;
+    --muted: #6b7280;
+    --border: #dde3f0;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  header {
+    background: linear-gradient(135deg, var(--navy) 0%, #283593 100%);
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,50,0.3);
+  }
+  header .logo-text h1 { font-size: 20px; letter-spacing: 0.5px; }
+  header .logo-text p  { font-size: 11px; color: var(--gold); letter-spacing: 1px; }
+  .badge-live { background: #4CAF50; color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 20px; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+  /* DASHBOARD */
+  .dashboard { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 16px; padding: 20px 24px; }
+  .stat-card  { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: 0 2px 8px rgba(0,0,50,.08); border-left: 4px solid var(--navy); }
+  .stat-card .label { font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+  .stat-card .value { font-size: 26px; font-weight: 800; color: var(--navy); }
+  .stat-card.gold   { border-left-color: var(--gold); }
+  .stat-card.gold .value { color: #92620a; }
+  .stat-card.green  { border-left-color: #2e7d32; }
+  .stat-card.green .value { color: #2e7d32; }
+  .stat-card.red    { border-left-color: #c62828; }
+  .stat-card.red .value { color: #c62828; }
+
+  /* TOOLBAR */
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 0 24px 16px; }
+  .toolbar input { flex: 1; min-width: 200px; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; outline: none; }
+  .toolbar input:focus { border-color: var(--navy); }
+  .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: .15s; display: flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--navy); color: #fff; }
+  .btn-excel   { background: #217346; color: #fff; }
+  .btn-pdf     { background: #c62828; color: #fff; }
+  .btn:hover   { opacity: .88; transform: translateY(-1px); }
+
+  /* TABLE */
+  .table-wrap { padding: 0 24px 40px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: var(--radius); overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,50,.08); }
+  thead { background: linear-gradient(90deg, var(--navy) 0%, #283593 100%); }
+  thead th { color: #fff; padding: 14px 12px; font-size: 12px; text-align: left; letter-spacing: .4px; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: #f5f7ff; }
+  tbody td { padding: 12px; font-size: 13px; }
+
+  /* MODAL */
+  #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 999; align-items: flex-start; justify-content: center; overflow-y: auto; padding: 16px; }
+  .modal-box { background: #fff; border-radius: 16px; padding: 20px; width: 90%; max-width: 480px; max-height: none; box-shadow: 0 8px 40px rgba(0,0,50,.2); margin: auto; }
+  .modal-box h3 { color: var(--navy); margin-bottom: 12px; font-size: 16px; }
+  .form-group { margin-bottom: 10px; }
+  .form-group label { display: block; font-size: 11px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .form-group input, .form-group select {
+    width: 100%; padding: 8px 12px; border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 13px; outline: none;
+  }
+  .form-group input:focus, .form-group select:focus { border-color: var(--navy); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+
+  @media (max-width: 600px) {
+    header { flex-direction: column; text-align: center; }
+    .toolbar { padding: 0 12px 12px; }
+    .table-wrap { padding: 0 12px 40px; }
+    .dashboard { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:40px;">🍀</div>
+  <div class="logo-text">
+    <h1>Land-Tax & Associates</h1>
+    <p>INTEGRITY · ACCURACY · TRUST</p>
+  </div>
+  <div style="margin-left:auto;"><span class="badge-live">● LIVE</span></div>
+</header>
+
+<!-- Dashboard -->
+<div class="dashboard">
+  <div class="stat-card">
+    <div class="label">মোট অর্ডার</div>
+    <div class="value" id="stat-orders">0</div>
+  </div>
+  <div class="stat-card gold">
+    <div class="label">মোট সংগ্রহ</div>
+    <div class="value" id="stat-total">৳0</div>
+  </div>
+  <div class="stat-card green">
+    <div class="label">পরিশোধিত</div>
+    <div class="value" id="stat-paid">৳0</div>
+  </div>
+  <div class="stat-card red">
+    <div class="label">বাকি আছে</div>
+    <div class="value" id="stat-pending">৳0</div>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <input type="text" id="search" placeholder="🔍 নাম বা মোবাইল নম্বর লিখুন...">
+  <button class="btn btn-primary" onclick="openAddModal()">＋ নতুন অর্ডার</button>
+  <button class="btn btn-excel" onclick="exportExcel()">📊 Excel</button>
+  <button class="btn btn-pdf" onclick="exportPDF()">📄 PDF</button>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>TIN Number</th>
+        <th>তারিখ</th>
+        <th>গ্রাহকের নাম</th>
+        <th>মোবাইল</th>
+        <th>ব্যাংক/MFS</th>
+        <th>পরিমাণ</th>
+        <th>Payment Status</th>
+        <th>eReturn Status</th>
+        <th>অ্যাকশন</th>
+      </tr>
+    </thead>
+    <tbody id="order-body">
+      <tr><td colspan="9" style="text-align:center;padding:40px;color:#999;">Firebase থেকে ডেটা লোড হচ্ছে...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal -->
+<div id="modal">
+  <div class="modal-box">
+    <h3 id="modal-title">নতুন অর্ডার</h3>
+    <div id="order-form">
+      <div class="form-group">
+        <label>TIN Number *</label>
+        <input type="text" id="f-tin" placeholder="TIN নম্বর লিখুন">
+      </div>
+      <div class="form-group">
+        <label>গ্রাহকের নাম *</label>
+        <input type="text" id="f-name" placeholder="Rahim Uddin">
+      </div>
+      <div class="form-group">
+        <label>মোবাইল নম্বর *</label>
+        <input type="text" id="f-mobile" placeholder="01XXXXXXXXX">
+      </div>
+      <div class="form-group">
+        <label>ব্যাংক / MFS নাম</label>
+        <input type="text" id="f-bank" placeholder="bKash / Nagad / Islami Bank">
+      </div>
+      <div class="form-group">
+        <label>পরিমাণ (টাকা)</label>
+        <input type="number" id="f-amount" placeholder="1500">
+      </div>
+      <div class="form-group">
+        <label>Payment Status</label>
+        <select id="f-ostatus">
+          <option>Pending Payment</option>
+          <option>Paid Partial</option>
+          <option>Paid</option>
+          <option>Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>eReturn Status</label>
+        <select id="f-dstatus">
+          <option>Pending</option>
+          <option>Processing</option>
+          <option>Submitted</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" style="background:#eee;color:#333;" onclick="closeModal()">বাতিল</button>
+      <button class="btn btn-primary" onclick="saveOrder()">💾 সংরক্ষণ করুন</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
